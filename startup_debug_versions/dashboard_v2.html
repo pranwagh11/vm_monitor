@@ -1,0 +1,2160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0" />
+
+  <title>NOC Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<style>
+  /* ===== Global scrollbar styling ===== */
+
+  /* WebKit (Chrome, Edge, Safari) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0f172a; /* slate-950 */
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #06b6d4, #3b82f6);
+    border-radius: 10px;
+    border: 2px solid #0f172a;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #22d3ee, #60a5fa);
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #06b6d4 #0f172a;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.7);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: 0 0 6px rgba(6, 182, 212, 0.4);
+}
+</style>
+<body class="bg-slate-950 text-slate-200 h-screen overflow-hidden">
+
+  <!-- ALERT TOAST -->
+
+  <div id="toast"
+
+    class="
+      fixed top-6 right-6 hidden
+      z-50 min-w-[320px]
+      bg-gradient-to-r
+      from-red-600
+      to-red-500
+      text-white
+      rounded-xl
+      shadow-2xl
+      border border-red-400/40
+      overflow-hidden
+      backdrop-blur-lg
+    ">
+
+    <div class="p-4">
+
+      <div class="flex items-start gap-3">
+
+        <div class="text-2xl">
+          ⚠
+        </div>
+
+        <div class="flex-1">
+
+          <div class="font-bold text-lg">
+            Threshold Alert
+          </div>
+
+          <div id="toastMessage"
+            class="text-sm text-red-100 mt-1">
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="h-1 bg-red-300 animate-pulse"></div>
+
+  </div>
+
+  <!-- AGENT DETAILS MODAL -->
+
+  <div id="agentView"
+
+    class="
+      hidden fixed inset-0 z-50
+      bg-slate-950/95
+      backdrop-blur-sm
+      p-6 overflow-auto
+    ">
+
+    <div class="flex justify-between items-center mb-6">
+
+      <h2 class="text-3xl font-bold">
+        Agent Diagnostics
+      </h2>
+
+      <button onclick="closeAgentView()"
+
+        class="
+          bg-red-600 hover:bg-red-700
+          px-4 py-2 rounded-lg
+        ">
+
+        Close
+
+      </button>
+
+    </div>
+
+    <div id="agentDetailContent"></div>
+
+  </div>
+
+  <!-- MAIN -->
+
+  <div class="h-screen w-screen p-4 pb-6 overflow-hidden">
+
+    <!-- HEADER -->
+
+    <div class="flex justify-between items-center mb-4">
+
+      <div>
+
+        <h1 class="text-3xl font-bold">
+          NOC Monitoring
+        </h1>
+
+        <p class="text-slate-400 text-sm">
+          Real-Time Infrastructure Monitoring
+        </p>
+
+      </div>
+
+      <div>
+
+        Status:
+
+        <span id="status"
+          class="text-red-400 font-bold">
+
+          Disconnected
+
+        </span>
+
+      </div>
+
+    </div>
+
+    <!-- GRID -->
+
+    <div class="grid grid-cols-12 gap-4 h-[calc(100vh-96px)] overflow-hidden">
+
+      <!-- LEFT -->
+    <!-- LEFT -->
+
+<div class="col-span-3 flex flex-col gap-4 overflow-hidden">
+
+  <!-- AGENTS -->
+
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+
+    <h2 class="font-bold mb-3">
+      Agents
+    </h2>
+
+    <select id="agentSelect"
+
+      class="
+        w-full p-2 rounded-lg
+        bg-slate-950
+        border border-slate-700
+      ">
+    </select>
+
+  </div>
+
+  <!-- THRESHOLDS -->
+
+  <div class="
+    bg-slate-900
+    border border-slate-800
+    rounded-xl p-4
+  ">
+
+    <div class="
+      flex justify-between
+      items-center mb-5
+    ">
+
+      <h2 class="font-bold">
+        Thresholds
+      </h2>
+
+      <button onclick="updateThresholds()"
+
+        class="
+          bg-cyan-600
+          hover:bg-cyan-700
+          px-3 py-1 rounded-lg
+          text-sm
+        ">
+
+        Save
+
+      </button>
+
+    </div>
+
+    <!-- CPU -->
+
+    <div class="mb-5">
+
+      <div class="
+        flex justify-between
+        text-sm mb-2
+      ">
+
+        <span class="text-slate-300">
+          CPU
+        </span>
+
+        <span id="cpuThresholdValue"
+          class="text-cyan-400 font-bold">
+
+          80%
+
+        </span>
+
+      </div>
+
+      <input
+        id="cpuThreshold"
+
+        type="range"
+
+        min="1"
+        max="100"
+
+        class="
+          w-full accent-cyan-500
+        "
+
+        oninput="
+          document.getElementById(
+            'cpuThresholdValue'
+          ).innerText =
+            this.value + '%'
+        "
+      />
+
+    </div>
+
+    <!-- RAM -->
+
+    <div class="mb-5">
+
+      <div class="
+        flex justify-between
+        text-sm mb-2
+      ">
+
+        <span class="text-slate-300">
+          RAM
+        </span>
+
+        <span id="ramThresholdValue"
+          class="text-blue-400 font-bold">
+
+          80%
+
+        </span>
+
+      </div>
+
+      <input
+        id="ramThreshold"
+
+        type="range"
+
+        min="1"
+        max="100"
+
+        class="
+          w-full accent-blue-500
+        "
+
+        oninput="
+          document.getElementById(
+            'ramThresholdValue'
+          ).innerText =
+            this.value + '%'
+        "
+      />
+
+    </div>
+
+    <!-- DISK -->
+
+    <div>
+
+      <div class="
+        flex justify-between
+        text-sm mb-2
+      ">
+
+        <span class="text-slate-300">
+          DISK
+        </span>
+
+        <span id="diskThresholdValue"
+          class="text-green-400 font-bold">
+
+          80%
+
+        </span>
+
+      </div>
+
+      <input
+        id="diskThreshold"
+
+        type="range"
+
+        min="1"
+        max="100"
+
+        class="
+          w-full accent-green-500
+        "
+
+        oninput="
+          document.getElementById(
+            'diskThresholdValue'
+          ).innerText =
+            this.value + '%'
+        "
+      />
+
+    </div>
+
+  </div>
+
+  <!-- AGENT ACTIVITY -->
+
+  <div class="
+    bg-slate-900
+    border border-slate-800
+    rounded-xl p-4
+    flex-1 min-h-0
+    overflow-hidden
+  ">
+
+    <div class="
+      flex justify-between
+      items-center mb-4
+    ">
+
+      <h2 class="font-bold text-lg">
+        Agent Activity
+      </h2>
+
+      <div class="
+        text-xs text-slate-500
+      ">
+        Real-time alerts
+      </div>
+
+    </div>
+
+    <div id="activityFeed"
+
+      class="
+        overflow-auto
+        h-full
+        space-y-2
+        pr-2
+      ">
+    </div>
+
+  </div>
+
+</div>
+     
+      <!-- CENTER -->
+
+      <div class="col-span-6 flex flex-col gap-4 overflow-hidden">
+
+        <!-- METRICS -->
+
+        <div class="grid grid-cols-3 gap-4">
+
+          <div class="bg-slate-900 rounded-xl p-4 text-center">
+
+            CPU
+
+            <div id="cpuValue"
+
+              class="
+                text-3xl
+                text-cyan-400
+                mt-2
+                font-bold
+              ">
+
+              0%
+
+            </div>
+
+          </div>
+
+          <div class="bg-slate-900 rounded-xl p-4 text-center">
+
+            RAM
+
+            <div id="ramValue"
+
+              class="
+                text-3xl
+                text-blue-400
+                mt-2
+                font-bold
+              ">
+
+              0%
+
+            </div>
+
+          </div>
+
+          <div class="bg-slate-900 rounded-xl p-4 text-center">
+
+            DISK
+
+            <div id="diskValue"
+
+              class="
+                text-3xl
+                text-green-400
+                mt-2
+                font-bold
+              ">
+
+              0%
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- CHART -->
+
+        <div class="
+          bg-slate-900
+          border border-slate-800
+          rounded-xl p-4
+          h-[320px]
+          overflow-hidden
+        ">
+
+          <canvas id="metricsChart"></canvas>
+
+        </div>
+
+ 
+
+        <!-- AGENT TABLE -->
+
+        <div class="
+          bg-slate-900
+          border border-slate-800
+          rounded-xl p-4
+          flex-1 min-h-0
+          overflow-hidden
+        ">
+
+          <h2 class="font-bold text-lg mb-4">
+            Agent Information
+          </h2>
+
+          <div class="overflow-auto h-full">
+
+            <table class="w-full text-sm">
+
+              <thead class="
+                sticky top-0
+                bg-slate-900
+                z-10
+              ">
+
+                <tr class="
+                  border-b border-slate-700
+                  text-slate-400
+                ">
+
+                  <th class="text-left p-3">
+                    Agent
+                  </th>
+
+                  <th class="text-left p-3">
+                    IP
+                  </th>
+
+                  <th class="text-left p-3">
+                    CPU
+                  </th>
+
+                  <th class="text-left p-3">
+                    RAM
+                  </th>
+
+                  <th class="text-left p-3">
+                    NET RX
+                  </th>
+
+                  <th class="text-left p-3">
+                    NET TX
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody id="agentTableBody"></tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- RIGHT -->
+
+      <div class="col-span-3 flex flex-col gap-4 overflow-hidden">
+
+        <!-- EVENTS -->
+
+        <div class="
+          bg-slate-900
+          border border-slate-800
+          rounded-xl p-4
+          flex-1 min-h-0
+          overflow-hidden
+        ">
+
+          <div class="flex justify-between items-center mb-4">
+
+            <h2 class="font-bold text-lg">
+              Events
+            </h2>
+
+            <button onclick="loadEvents()"
+
+              class="
+                text-cyan-400
+                hover:text-cyan-300
+              ">
+
+              Refresh
+
+            </button>
+
+          </div>
+
+          <div class="overflow-auto h-full">
+
+            <table class="w-full text-sm">
+
+              <thead class="
+                sticky top-0
+                bg-slate-900
+                z-10
+              ">
+
+                <tr class="
+                  border-b border-slate-700
+                  text-slate-400
+                ">
+
+                  <th class="text-left p-3">
+                    Metric
+                  </th>
+
+                  <th class="text-left p-3">
+                    Value
+                  </th>
+
+                  <th class="text-left p-3">
+                    Threshold
+                  </th>
+
+                  <th class="text-left p-3">
+                    Severity
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody id="events"></tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+        <!-- HISTORY -->
+
+        <div class="
+          bg-slate-900
+          border border-slate-800
+          rounded-xl p-4
+          flex-1 min-h-0
+          overflow-hidden
+        ">
+
+          <div class="flex justify-between items-center mb-4">
+
+            <h2 class="font-bold text-lg">
+              History
+            </h2>
+
+            <button onclick="loadHistory()"
+
+              class="
+                text-cyan-400
+                hover:text-cyan-300
+              ">
+
+              Refresh
+
+            </button>
+
+          </div>
+
+          <div class="overflow-auto h-full">
+
+            <table class="w-full text-sm">
+
+              <thead class="
+                sticky top-0
+                bg-slate-900
+                z-10
+              ">
+
+                <tr class="
+                  border-b border-slate-700
+                  text-slate-400
+                ">
+
+                  <th class="text-left p-3">
+                    Time
+                  </th>
+
+                  <th class="text-left p-3">
+                    CPU
+                  </th>
+
+                  <th class="text-left p-3">
+                    RAM
+                  </th>
+
+                  <th class="text-left p-3">
+                    DISK
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody id="historyTableBody"></tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+
+    // SOCKET
+
+    const socket =
+      new WebSocket(
+        "ws://localhost:8000/ws/frontend"
+      );
+
+    // DOM
+    
+    function safeSend(
+            payload,
+            label = "Action"
+          ) {
+
+            if (
+              !socket ||
+              socket.readyState !==
+              WebSocket.OPEN
+            ) {
+
+              console.warn(
+                "WebSocket closed"
+              );
+
+              addActivity(
+                `${label} failed`,
+                "red"
+              );
+
+              return;
+            }
+
+            socket.send(
+              JSON.stringify(payload)
+            );
+
+            addActivity(
+              `${label} → ${payload.action}`,
+              "cyan"
+            );
+          }
+
+    const agentSelect =
+      document.getElementById(
+        "agentSelect"
+      );
+
+    const cpuValue =
+      document.getElementById(
+        "cpuValue"
+      );
+
+    const ramValue =
+      document.getElementById(
+        "ramValue"
+      );
+
+    const diskValue =
+      document.getElementById(
+        "diskValue"
+      );
+
+    const statusEl =
+      document.getElementById(
+        "status"
+      );
+
+    const eventsContainer =
+      document.getElementById(
+        "events"
+      );
+
+    const historyTableBody =
+      document.getElementById(
+        "historyTableBody"
+      );
+
+    const agentTableBody =
+      document.getElementById(
+        "agentTableBody"
+      );
+
+    const activityFeed =
+      document.getElementById(
+        "activityFeed"
+      );
+
+    // STATE
+
+    let agents = {};
+
+    let selectedAgent = "";
+
+    let thresholds = {
+      cpu: 80,
+      ram: 80,
+      disk: 80
+    };
+
+    let currentAgentView = null;
+
+    // CHART
+
+    const metricsChart =
+      new Chart(
+        document.getElementById(
+          "metricsChart"
+        ),
+        {
+
+          type: "line",
+
+          data: {
+
+            labels: [],
+
+            datasets: [
+
+              {
+                label: "CPU",
+                borderColor: "#06b6d4",
+                data: [],
+                tension: 0.3
+              },
+
+              {
+                label: "RAM",
+                borderColor: "#3b82f6",
+                data: [],
+                tension: 0.3
+              },
+
+              {
+                label: "DISK",
+                borderColor: "#22c55e",
+                data: [],
+                tension: 0.3
+              }
+
+            ]
+          },
+
+          options: {
+
+            responsive: true,
+
+            maintainAspectRatio: false,
+
+            animation: false,
+
+            plugins: {
+
+              legend: {
+
+                labels: {
+                  color: "#cbd5e1"
+                }
+              }
+            },
+
+            scales: {
+
+              x: {
+
+                ticks: {
+                  color: "#94a3b8"
+                }
+              },
+
+              y: {
+
+                min: 0,
+                max: 100,
+
+                ticks: {
+                  color: "#94a3b8"
+                }
+              }
+            }
+          }
+        }
+      );
+
+    // SOCKET OPEN
+
+    socket.onopen = () => {
+
+      statusEl.innerText =
+        "Connected";
+
+      statusEl.className =
+        "text-green-400 font-bold";
+    };
+
+    // SOCKET CLOSE
+
+    socket.onclose = () => {
+
+      statusEl.innerText =
+        "Disconnected";
+
+      statusEl.className =
+        "text-red-400 font-bold";
+    };
+
+    // SOCKET MESSAGE
+
+    socket.onmessage = (event) => {
+
+      const msg =
+        JSON.parse(event.data);
+
+      // INIT
+
+      if (msg.type === "init") {
+
+        agents =
+          msg.agents || {};
+
+        thresholds =
+          msg.thresholds || thresholds;
+
+        populateAgents();
+
+        renderAgentTable();
+
+        setThresholdInputs();
+
+        const ids =
+          Object.keys(agents);
+
+        if (ids.length) {
+
+          selectedAgent =
+            ids[0];
+
+          agentSelect.value =
+            selectedAgent;
+
+          updateDashboard(
+            agents[selectedAgent]
+          );
+        }
+      }
+
+      // LIVE METRICS
+
+      if (msg.type === "metrics") {
+
+        agents[msg.agent_id] =
+          msg.data;
+
+        renderAgentTable();
+
+        if (!selectedAgent) {
+
+          selectedAgent =
+            msg.agent_id;
+
+          agentSelect.value =
+            selectedAgent;
+        }
+
+        if (
+          msg.agent_id ===
+          selectedAgent
+        ) {
+
+          updateDashboard(
+            msg.data
+          );
+
+          checkThresholds(
+            msg.data
+          );
+        }
+
+        if (
+          currentAgentView ===
+          msg.agent_id
+        ) {
+
+          openAgentView(
+            msg.agent_id
+          );
+        }
+
+        populateAgents();
+      }
+
+      // EVENTS
+
+      if (msg.type === "events") {
+
+        eventsContainer.innerHTML =
+          "";
+
+        (msg.data || [])
+          .reverse()
+          .forEach(addEvent);
+      }
+
+      // EVENT
+
+      if (msg.type === "event") {
+
+        addEvent(msg.data);
+
+     
+      }
+
+      // HISTORY
+
+      if (msg.type === "history") {
+
+        renderHistoryTable(
+          msg.data || []
+        );
+      }
+
+      // PROCESS HISTORY
+
+      if (
+        msg.type ===
+        "process_history"
+      ) {
+
+        renderProcessHistory(
+          msg.data || []
+        );
+      }
+
+      // THRESHOLD UPDATE
+
+      if (
+        msg.type ===
+        "threshold_update"
+      ) {
+
+        thresholds =
+          msg.data;
+
+        setThresholdInputs();
+      }
+    };
+
+    // DASHBOARD
+
+    function updateDashboard(data) {
+
+      cpuValue.innerText =
+        `${data.cpu || 0}%`;
+
+      ramValue.innerText =
+        `${data.ram?.percent || 0}%`;
+
+      diskValue.innerText =
+        `${data.disk?.percent || 0}%`;
+
+      updateChart(data);
+    }
+
+    // CHART
+
+    function updateChart(data) {
+
+      const t =
+        new Date()
+          .toLocaleTimeString();
+
+      metricsChart.data.labels.push(t);
+
+      metricsChart.data.datasets[0]
+        .data.push(data.cpu || 0);
+
+      metricsChart.data.datasets[1]
+        .data.push(
+          data.ram?.percent || 0
+        );
+
+      metricsChart.data.datasets[2]
+        .data.push(
+          data.disk?.percent || 0
+        );
+
+      if (
+        metricsChart.data.labels
+          .length > 30
+      ) {
+
+        metricsChart.data.labels
+          .shift();
+
+        metricsChart.data.datasets
+          .forEach(ds => {
+            ds.data.shift();
+          });
+      }
+
+      metricsChart.update();
+    }
+
+    // AGENTS
+
+    function populateAgents() {
+
+      const current =
+        agentSelect.value;
+
+      agentSelect.innerHTML =
+        "";
+
+      Object.keys(agents)
+        .forEach(id => {
+
+          const opt =
+            document.createElement(
+              "option"
+            );
+
+          opt.value = id;
+
+          opt.innerText = id;
+
+          agentSelect.appendChild(
+            opt
+          );
+        });
+
+      if (current) {
+
+        agentSelect.value =
+          current;
+      }
+    }
+
+    // AGENT TABLE
+
+    function renderAgentTable() {
+
+      agentTableBody.innerHTML =
+        "";
+
+      const ids =
+        Object.keys(agents);
+
+      if (!ids.length) {
+
+        agentTableBody.innerHTML =
+          `
+          <tr>
+            <td colspan="6"
+              class="
+                p-4 text-center
+                text-slate-500
+              ">
+              No agents connected
+            </td>
+          </tr>
+        `;
+
+        return;
+      }
+
+      ids.forEach(id => {
+
+        const a =
+          agents[id] || {};
+
+        const row =
+          document.createElement(
+            "tr"
+          );
+
+        row.className =
+          `
+          border-b border-slate-800
+          hover:bg-slate-800
+          cursor-pointer
+        `;
+
+        row.onclick = () =>
+          openAgentView(id);
+
+        row.innerHTML = `
+
+          <td class="
+            p-3 text-cyan-400
+            font-bold
+          ">
+            ${id}
+          </td>
+
+          <td class="p-3">
+            ${a.ip || "-"}
+          </td>
+
+          <td class="
+            p-3 text-orange-400
+          ">
+            ${a.cpu ?? 0}%
+          </td>
+
+          <td class="
+            p-3 text-blue-400
+          ">
+            ${a.ram?.percent ?? 0}%
+          </td>
+
+          <td class="p-3">
+            ${a.net?.bytes_recv ?? 0}
+          </td>
+
+          <td class="p-3">
+            ${a.net?.bytes_sent ?? 0}
+          </td>
+        `;
+
+        agentTableBody.appendChild(
+          row
+        );
+      });
+    }
+
+    // EVENTS
+
+    function addEvent(e) {
+
+      const row =
+        document.createElement("tr");
+
+      row.className =
+        `
+        border-b border-slate-800
+        hover:bg-slate-800
+      `;
+
+      row.innerHTML = `
+
+        <td class="
+          p-3 font-semibold
+          text-cyan-400
+        ">
+          ${e.metric || "-"}
+        </td>
+
+        <td class="p-3">
+          ${e.value || 0}%
+        </td>
+
+        <td class="p-3">
+          ${e.threshold || 0}%
+        </td>
+
+        <td class="p-3">
+
+          <span class="
+            px-2 py-1 rounded
+            text-xs font-bold
+
+            ${
+              e.severity ===
+              "critical"
+
+              ? "bg-red-500/20 text-red-400"
+
+              : "bg-orange-500/20 text-orange-400"
+            }
+          ">
+
+            ${e.severity || "warning"}
+
+          </span>
+
+        </td>
+      `;
+
+      eventsContainer.prepend(row);
+    }
+
+    // HISTORY
+
+    function renderHistoryTable(history) {
+
+      historyTableBody.innerHTML =
+        "";
+
+      if (!history.length) {
+
+        historyTableBody.innerHTML =
+          `
+          <tr>
+            <td colspan="4"
+
+              class="
+                p-4 text-center
+                text-slate-500
+              ">
+
+              No history available
+
+            </td>
+          </tr>
+        `;
+
+        return;
+      }
+
+      history.reverse().forEach(h => {
+
+        const row =
+          document.createElement(
+            "tr"
+          );
+
+        row.className =
+          `
+          border-b border-slate-800
+          hover:bg-slate-800
+        `;
+
+        row.innerHTML = `
+
+          <td class="
+            p-3 text-slate-400
+          ">
+
+            ${new Date()
+              .toLocaleTimeString()}
+
+          </td>
+
+          <td class="
+            p-3 text-cyan-400
+          ">
+            ${h.cpu || 0}%
+          </td>
+
+          <td class="
+            p-3 text-blue-400
+          ">
+            ${h.ram?.percent || 0}%
+          </td>
+
+          <td class="
+            p-3 text-green-400
+          ">
+            ${h.disk?.percent || 0}%
+          </td>
+        `;
+
+        historyTableBody
+          .appendChild(row);
+      });
+    }
+
+    // ACTIVITY
+
+    function addActivity(
+      message,
+      color = "cyan"
+    ) {
+
+      const div =
+        document.createElement(
+          "div"
+        );
+
+      div.className = `
+        border border-slate-800
+        bg-slate-800/60
+        rounded-lg
+        px-3 py-2
+        text-sm
+        text-${color}-400
+      `;
+
+      div.innerHTML = `
+
+        <div class="
+          flex justify-between
+        ">
+
+          <span>
+            ${message}
+          </span>
+
+          <span class="
+            text-slate-500
+            text-xs
+          ">
+
+            ${new Date()
+              .toLocaleTimeString()}
+
+          </span>
+
+        </div>
+      `;
+
+      activityFeed.prepend(div);
+
+      while (
+        activityFeed.children.length >
+        20
+      ) {
+
+        activityFeed.removeChild(
+          activityFeed.lastChild
+        );
+      }
+    }
+
+    // TOAST
+
+    function showToast(msg) {
+
+      const toast =
+        document.getElementById(
+          "toast"
+        );
+
+      const toastMessage =
+        document.getElementById(
+          "toastMessage"
+        );
+
+      toastMessage.innerText =
+        msg;
+
+      toast.classList.remove(
+        "hidden"
+      );
+
+      toast.classList.add(
+        "animate-bounce"
+      );
+
+      setTimeout(() => {
+
+        toast.classList.remove(
+          "animate-bounce"
+        );
+
+      }, 800);
+
+      clearTimeout(
+        window.toastTimeout
+      );
+
+      window.toastTimeout =
+        setTimeout(() => {
+
+          toast.classList.add(
+            "hidden"
+          );
+
+        }, 4000);
+    }
+
+    // ALERTS
+
+    function checkThresholds(d) {
+
+      if (
+        d.cpu >
+        thresholds.cpu
+      ) {
+
+        showToast(
+          `CPU ALERT ${d.cpu}%`
+        );
+      }
+
+      if (
+        d.ram?.percent >
+        thresholds.ram
+      ) {
+
+        showToast(
+          `RAM ALERT ${d.ram.percent}%`
+        );
+      }
+
+      if (
+        d.disk?.percent >
+        thresholds.disk
+      ) {
+
+        showToast(
+          `DISK ALERT ${d.disk.percent}%`
+        );
+      }
+    }
+
+    // AGENT VIEW
+
+function openAgentView(id) {
+
+  currentAgentView = id;
+
+  const a =
+    agents[id] || {};
+
+  document
+    .getElementById(
+      "agentView"
+    )
+    .classList.remove(
+      "hidden"
+    );
+
+  document
+    .getElementById(
+      "agentDetailContent"
+    ).innerHTML = `
+
+    <div class="
+      grid grid-cols-2
+      gap-6
+    ">
+
+      <!-- LEFT -->
+
+      <div class="space-y-4">
+
+        <!-- SYSTEM INFO -->
+
+        <div class="
+          bg-slate-800
+          rounded-lg p-4
+        ">
+
+          <h3 class="
+            text-lg font-bold
+            mb-4
+          ">
+            System Information
+          </h3>
+
+          <div class="
+            space-y-3 text-sm
+          ">
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                Agent:
+              </span>
+
+              ${id}
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                IP:
+              </span>
+
+              ${a.ip || "-"}
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                CPU:
+              </span>
+
+              ${a.cpu || 0}%
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                RAM:
+              </span>
+
+              ${a.ram?.percent || 0}%
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                DISK:
+              </span>
+
+              ${a.disk?.percent || 0}%
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                NET RX:
+              </span>
+
+              ${a.net?.bytes_recv || 0}
+            </div>
+
+            <div>
+              <span class="
+                text-slate-400
+              ">
+                NET TX:
+              </span>
+
+              ${a.net?.bytes_sent || 0}
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- PROCESS SECTION -->
+
+        <div class="
+          bg-slate-800
+          rounded-lg p-4
+        ">
+
+          <h3 class="
+            text-lg font-bold
+            mb-4
+          ">
+            Processes
+          </h3>
+
+          <div class="
+            overflow-auto
+            max-h-[420px]
+          ">
+
+            <table class="
+              w-full text-sm
+            ">
+
+              <thead class="
+                sticky top-0
+                bg-slate-800
+                z-10
+              ">
+
+                <tr class="
+                  border-b border-slate-700
+                  text-slate-400
+                ">
+
+                  <th class="
+                    text-left p-3
+                  ">
+                    Process
+                  </th>
+
+                  <th class="
+                    text-left p-3
+                  ">
+                    CPU
+                  </th>
+
+                  <th class="
+                    text-left p-3
+                  ">
+                    RAM
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                ${
+                  (a.processes || [])
+
+                    .sort((x, y) =>
+                      y.cpu_percent -
+                      x.cpu_percent
+                    )
+
+                    .slice(0, 20)
+
+                    .map(proc => `
+
+                      <tr class="
+                        border-b border-slate-800
+                        hover:bg-slate-700
+                      ">
+
+                        <td class="p-3">
+                          ${proc.name || "-"}
+                        </td>
+
+                        <td class="
+                          p-3 text-cyan-400
+                        ">
+                          ${proc.cpu_percent || 0}%
+                        </td>
+
+                        <td class="
+                          p-3 text-blue-400
+                        ">
+                          ${
+                            proc.memory_percent
+                              ?.toFixed(1) || 0
+                          }%
+                        </td>
+
+                      </tr>
+
+                    `).join("")
+
+                    ||
+
+                    `
+
+                    <tr>
+
+                      <td colspan="3"
+
+                        class="
+                          p-4 text-center
+                          text-slate-500
+                        ">
+
+                        No process data
+
+                      </td>
+
+                    </tr>
+                  `
+                }
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- RIGHT -->
+
+      <div class="
+        bg-slate-800
+        rounded-lg p-4
+        h-[70vh]
+        overflow-hidden
+        flex flex-col
+      ">
+
+        <div class="
+          flex justify-between
+          items-center mb-4
+        ">
+
+          <h3 class="
+            text-lg font-bold
+          ">
+            Process History
+          </h3>
+
+          <button
+
+            onclick="
+              refreshAgentDiagnostics(
+                '${id}'
+              )
+            "
+
+            class="
+              bg-cyan-600
+              hover:bg-cyan-700
+              px-3 py-1
+              rounded text-sm
+            ">
+
+            Refresh
+
+          </button>
+
+        </div>
+
+        <div class="
+          overflow-auto
+          flex-1
+        ">
+
+          <table class="
+            w-full text-sm
+          ">
+
+            <thead class="
+              sticky top-0
+              bg-slate-800
+              z-10
+            ">
+
+              <tr class="
+                border-b border-slate-700
+                text-slate-400
+              ">
+
+                <th class="
+                  text-left p-3
+                ">
+                  Process
+                </th>
+
+                <th class="
+                  text-left p-3
+                ">
+                  CPU
+                </th>
+
+                <th class="
+                  text-left p-3
+                ">
+                  Time
+                </th>
+
+              </tr>
+
+            </thead>
+
+            <tbody id="
+              agentProcessHistoryBody
+            ">
+
+              <tr>
+
+                <td colspan="3"
+
+                  class="
+                    p-6 text-center
+                    text-slate-500
+                  ">
+
+                  Click refresh to load
+                  process history
+
+                </td>
+
+              </tr>
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+  `;
+}
+    function closeAgentView() {
+
+      currentAgentView =
+        null;
+
+      document
+        .getElementById(
+          "agentView"
+        )
+        .classList.add(
+          "hidden"
+        );
+    }
+
+    // PROCESS HISTORY
+
+    function refreshAgentDiagnostics(
+      agentId
+    ) {
+
+      addActivity(
+
+        `Loading process history for ${agentId}`,
+
+        "cyan"
+      );
+
+      loadProcessHistory(agentId);
+    }
+
+ function loadProcessHistory(
+  agentId
+) {
+
+  safeSend({
+
+    action:
+      "get_process_history",
+
+    agent_id:
+      agentId
+
+  }, "Load Process History");
+}
+
+    function renderProcessHistory(
+      history
+    ) {
+
+      const body =
+        document.getElementById(
+          "agentProcessHistoryBody"
+        );
+
+      if (!body) return;
+
+      body.innerHTML = "";
+
+      if (!history.length) {
+
+        body.innerHTML = `
+
+          <tr>
+
+            <td colspan="3"
+
+              class="
+                p-4 text-center
+                text-slate-500
+              ">
+
+              No process history available
+
+            </td>
+
+          </tr>
+        `;
+
+        return;
+      }
+
+      history.forEach(snapshot => {
+
+        const time =
+          snapshot.timestamp
+
+          ? new Date(
+              snapshot.timestamp * 1000
+            ).toLocaleTimeString()
+
+          : "-";
+
+        (snapshot.processes || [])
+
+          .sort((a, b) =>
+
+            b.cpu_percent -
+            a.cpu_percent
+          )
+
+          .slice(0, 15)
+
+          .forEach(proc => {
+
+            const row =
+              document.createElement(
+                "tr"
+              );
+
+            row.className =
+              `
+              border-b border-slate-800
+              hover:bg-slate-700
+            `;
+
+            row.innerHTML = `
+
+              <td class="p-3">
+                ${proc.name}
+              </td>
+
+              <td class="
+                p-3 text-cyan-400
+              ">
+                ${proc.cpu_percent}%
+              </td>
+
+              <td class="
+                p-3 text-slate-400
+              ">
+                ${time}
+              </td>
+            `;
+
+            body.appendChild(row);
+          });
+      });
+    }
+
+    // LOADERS
+
+  function loadHistory() {
+
+  if (!selectedAgent)
+    return;
+
+  safeSend({
+
+    action:
+      "get_history",
+
+    agent_id:
+      selectedAgent
+
+  }, "Load History");
+}
+
+    function loadEvents() {
+
+  if (!selectedAgent)
+    return;
+
+  safeSend({
+
+    action:
+      "get_events",
+
+    agent_id:
+      selectedAgent
+
+  }, "Load Events");
+}
+
+    // THRESHOLDS
+
+   function updateThresholds() {
+
+  safeSend({
+
+    action:
+      "set_threshold",
+
+    cpu:
+      Number(
+        document
+          .getElementById(
+            "cpuThreshold"
+          ).value
+      ),
+
+    ram:
+      Number(
+        document
+          .getElementById(
+            "ramThreshold"
+          ).value
+      ),
+
+    disk:
+      Number(
+        document
+          .getElementById(
+            "diskThreshold"
+          ).value
+      )
+
+  }, "Update Thresholds");
+}
+
+    function setThresholdInputs() {
+
+  document
+    .getElementById(
+      "cpuThreshold"
+    ).value =
+      thresholds.cpu;
+
+  document
+    .getElementById(
+      "ramThreshold"
+    ).value =
+      thresholds.ram;
+
+  document
+    .getElementById(
+      "diskThreshold"
+    ).value =
+      thresholds.disk;
+
+  document
+    .getElementById(
+      "cpuThresholdValue"
+    ).innerText =
+      thresholds.cpu + "%";
+
+  document
+    .getElementById(
+      "ramThresholdValue"
+    ).innerText =
+      thresholds.ram + "%";
+
+  document
+    .getElementById(
+      "diskThresholdValue"
+    ).innerText =
+      thresholds.disk + "%";
+}
+
+    // AGENT SWITCH
+
+    agentSelect.addEventListener(
+      "change",
+      () => {
+
+        selectedAgent =
+          agentSelect.value;
+
+        metricsChart.data.labels =
+          [];
+
+        metricsChart.data.datasets
+          .forEach(ds => {
+            ds.data = [];
+          });
+
+        metricsChart.update();
+
+        if (
+          agents[selectedAgent]
+        ) {
+
+          updateDashboard(
+            agents[selectedAgent]
+          );
+        }
+
+        loadHistory();
+        loadEvents();
+      }
+    );
+
+  </script>
+
+</body>
+
+</html>
