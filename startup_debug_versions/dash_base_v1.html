@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>Monitoring Dashboard</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+<body class="bg-slate-950 text-slate-200 min-h-screen">
+
+  <div class="max-w-7xl mx-auto p-6">
+
+    <!-- HEADER -->
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+
+      <div>
+
+        <h1 class="text-4xl font-bold text-white">
+          Monitoring Dashboard
+        </h1>
+
+        <p class="text-slate-400 mt-1">
+          Multi-Agent Monitoring Hub
+        </p>
+
+      </div>
+
+      <div class="mt-4 md:mt-0">
+
+        <div class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl">
+
+          Status:
+          <span
+            id="status"
+            class="ml-2 font-semibold text-red-400"
+          >
+            Disconnected
+          </span>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- TOP GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+      <!-- SIDEBAR -->
+      <div class="space-y-6">
+
+        <!-- AGENT -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+
+          <h2 class="text-xl font-semibold mb-4">
+            Select Agent
+          </h2>
+
+          <select
+            id="agentSelect"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-cyan-500"
+          ></select>
+
+        </div>
+
+        <!-- THRESHOLDS -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+
+          <h2 class="text-xl font-semibold mb-5">
+            Thresholds
+          </h2>
+
+          <div class="space-y-4">
+
+            <div>
+
+              <label class="block mb-2 text-sm text-slate-400">
+                CPU
+              </label>
+
+              <input
+                id="cpuThreshold"
+                type="number"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2"
+              />
+
+            </div>
+
+            <div>
+
+              <label class="block mb-2 text-sm text-slate-400">
+                RAM
+              </label>
+
+              <input
+                id="ramThreshold"
+                type="number"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2"
+              />
+
+            </div>
+
+            <div>
+
+              <label class="block mb-2 text-sm text-slate-400">
+                DISK
+              </label>
+
+              <input
+                id="diskThreshold"
+                type="number"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2"
+              />
+
+            </div>
+
+          </div>
+
+          <button
+            onclick="updateThresholds()"
+            class="w-full mt-5 bg-cyan-600 hover:bg-cyan-500 transition rounded-xl py-3 font-semibold"
+          >
+            Update Thresholds
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- MAIN -->
+      <div class="lg:col-span-3 space-y-6">
+
+        <!-- METRICS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+          <!-- CPU -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+            <div class="text-slate-400 mb-2">
+              CPU Usage
+            </div>
+
+            <div
+              id="cpuValue"
+              class="text-5xl font-bold text-cyan-400"
+            >
+              0%
+            </div>
+
+          </div>
+
+          <!-- RAM -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+            <div class="text-slate-400 mb-2">
+              RAM Usage
+            </div>
+
+            <div
+              id="ramValue"
+              class="text-5xl font-bold text-blue-400"
+            >
+              0%
+            </div>
+
+          </div>
+
+          <!-- DISK -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+            <div class="text-slate-400 mb-2">
+              Disk Usage
+            </div>
+
+            <div
+              id="diskValue"
+              class="text-5xl font-bold text-green-400"
+            >
+              0%
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- CHART -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-5">
+
+            <h2 class="text-2xl font-semibold">
+              Realtime Metrics
+            </h2>
+
+            <div class="flex gap-3 mt-4 md:mt-0">
+
+              <button
+                onclick="loadHistory()"
+                class="bg-slate-800 hover:bg-slate-700 px-5 py-2 rounded-xl"
+              >
+                Load History
+              </button>
+
+              <button
+                onclick="loadEvents()"
+                class="bg-slate-800 hover:bg-slate-700 px-5 py-2 rounded-xl"
+              >
+                Load Events
+              </button>
+
+            </div>
+
+          </div>
+
+          <canvas id="metricsChart"></canvas>
+
+        </div>
+
+        <!-- PROCESSES -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-5">
+
+            <h2 class="text-2xl font-semibold">
+              Processes
+            </h2>
+
+            <div class="flex gap-3 mt-4 md:mt-0">
+
+              <button
+                onclick="loadProcesses()"
+                class="bg-cyan-600 hover:bg-cyan-500 px-5 py-2 rounded-xl font-semibold"
+              >
+                Refresh Processes
+              </button>
+
+              <button
+                onclick="loadProcessHistory()"
+                class="bg-slate-800 hover:bg-slate-700 px-5 py-2 rounded-xl"
+              >
+                Process History
+              </button>
+
+            </div>
+
+          </div>
+
+          <div class="overflow-x-auto">
+
+            <table class="w-full">
+
+              <thead>
+
+                <tr class="border-b border-slate-800 text-slate-400">
+
+                  <th class="text-left py-3">
+                    Process
+                  </th>
+
+                  <th class="text-left py-3">
+                    CPU %
+                  </th>
+
+                </tr>
+
+              </thead>
+
+              <tbody id="processTableBody"></tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+
+        <!-- EVENTS -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+          <h2 class="text-2xl font-semibold mb-5">
+            Alerts / Events
+          </h2>
+
+          <div
+            id="events"
+            class="space-y-4"
+          ></div>
+
+        </div>
+
+        <!-- PROCESS HISTORY -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+          <h2 class="text-2xl font-semibold mb-5">
+            Process History
+          </h2>
+
+          <div
+            id="processHistory"
+            class="space-y-5"
+          ></div>
+
+        </div>
+
+        <!-- RAW DATA -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+
+          <h2 class="text-2xl font-semibold mb-5">
+            Raw Agent Data
+          </h2>
+
+          <pre
+            id="rawData"
+            class="bg-slate-950 border border-slate-800 rounded-xl p-5 overflow-auto text-sm text-green-400"
+          ></pre>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+  const socket = new WebSocket("ws://localhost:8000/ws/frontend");
+
+// --------------------------
+// DOM ELEMENTS
+// --------------------------
+
+const agentSelect =
+  document.getElementById("agentSelect");
+
+const cpuValue =
+  document.getElementById("cpuValue");
+
+const ramValue =
+  document.getElementById("ramValue");
+
+const diskValue =
+  document.getElementById("diskValue");
+
+const rawData =
+  document.getElementById("rawData");
+
+const eventsContainer =
+  document.getElementById("events");
+
+const statusEl =
+  document.getElementById("status");
+
+const processTableBody =
+  document.getElementById("processTableBody");
+
+// --------------------------
+// STATE
+// --------------------------
+
+let agents = {};
+
+let selectedAgent = "";
+
+// --------------------------
+// CHART
+// --------------------------
+
+const ctx =
+  document.getElementById("metricsChart");
+
+const metricsChart = new Chart(ctx, {
+
+  type: "line",
+
+  data: {
+
+    labels: [],
+
+    datasets: [
+
+      {
+        label: "CPU",
+        borderColor: "#ff4d4f",
+        backgroundColor: "rgba(255,77,79,0.2)",
+        data: [],
+        tension: 0.3
+      },
+
+      {
+        label: "RAM",
+        borderColor: "#1890ff",
+        backgroundColor: "rgba(24,144,255,0.2)",
+        data: [],
+        tension: 0.3
+      },
+
+      {
+        label: "DISK",
+        borderColor: "#52c41a",
+        backgroundColor: "rgba(82,196,26,0.2)",
+        data: [],
+        tension: 0.3
+      }
+    ]
+  },
+
+  options: {
+
+    responsive: true,
+
+    animation: false,
+
+    scales: {
+
+      y: {
+        min: 0,
+        max: 100
+      }
+    }
+  }
+});
+
+// --------------------------
+// SOCKET OPEN
+// --------------------------
+
+socket.onopen = () => {
+
+  statusEl.innerText = "Connected";
+  statusEl.style.color = "lime";
+
+  console.log("Connected");
+};
+
+// --------------------------
+// SOCKET CLOSE
+// --------------------------
+
+socket.onclose = () => {
+
+  statusEl.innerText = "Disconnected";
+  statusEl.style.color = "red";
+
+  console.log("Disconnected");
+};
+
+// --------------------------
+// SOCKET MESSAGE
+// --------------------------
+
+socket.onmessage = (event) => {
+
+  const msg = JSON.parse(event.data);
+
+  console.log(msg);
+
+  // --------------------------
+  // INIT
+  // --------------------------
+
+  if (msg.type === "init") {
+
+    agents = msg.agents;
+
+    populateAgents();
+
+    document.getElementById("cpuThreshold").value =
+      msg.thresholds.cpu;
+
+    document.getElementById("ramThreshold").value =
+      msg.thresholds.ram;
+
+    document.getElementById("diskThreshold").value =
+      msg.thresholds.disk;
+
+    // auto select first agent
+
+    const ids = Object.keys(agents);
+
+    if (ids.length > 0) {
+
+      selectedAgent = ids[0];
+
+      agentSelect.value = selectedAgent;
+
+      updateDashboard(agents[selectedAgent]);
+
+      loadHistory();
+      loadEvents();
+      //loadProcesses();
+    }
+  }
+
+  // --------------------------
+  // LIVE METRICS
+  // --------------------------
+
+  if (msg.type === "metrics") {
+
+    agents[msg.agent_id] = msg.data;
+
+    // first agent auto select
+
+    if (!selectedAgent) {
+
+      selectedAgent = msg.agent_id;
+
+      agentSelect.value = selectedAgent;
+    }
+
+    // live update selected agent
+
+    if (msg.agent_id === selectedAgent) {
+
+      updateDashboard(msg.data);
+    }
+
+    populateAgents();
+  }
+
+  // --------------------------
+  // EVENT
+  // --------------------------
+
+  if (msg.type === "event") {
+
+    const e = msg.data;
+
+    if (e.agent_id === selectedAgent) {
+
+      addEvent(e);
+    }
+  }
+
+  // --------------------------
+  // HISTORY
+  // --------------------------
+
+  if (msg.type === "history") {
+
+    loadChartHistory(msg.data);
+  }
+
+  // --------------------------
+  // EVENTS LIST
+  // --------------------------
+
+  if (msg.type === "events") {
+
+    eventsContainer.innerHTML = "";
+
+    msg.data
+      .reverse()
+      .forEach(addEvent);
+  }
+
+  // --------------------------
+  // PROCESSES
+  // --------------------------
+
+  if (msg.type === "processes") {
+
+    renderProcesses(msg.data);
+  }
+
+  // --------------------------
+  // PROCESS HISTORY
+  // --------------------------
+
+  if (msg.type === "process_history") {
+
+    renderProcessHistory(msg.data);
+  }
+
+  // --------------------------
+  // THRESHOLD UPDATE
+  // --------------------------
+
+  if (msg.type === "threshold_update") {
+
+    document.getElementById("cpuThreshold").value =
+      msg.data.cpu;
+
+    document.getElementById("ramThreshold").value =
+      msg.data.ram;
+
+    document.getElementById("diskThreshold").value =
+      msg.data.disk;
+  }
+};
+
+// --------------------------
+// UPDATE DASHBOARD
+// --------------------------
+
+function updateDashboard(data) {
+
+  // metrics values
+
+  cpuValue.innerText =
+    data.cpu + "%";
+
+  ramValue.innerText =
+    data.ram.percent + "%";
+
+  diskValue.innerText =
+    data.disk.percent + "%";
+
+  // colors
+
+  colorize(cpuValue, data.cpu);
+
+  colorize(ramValue, data.ram.percent);
+
+  colorize(diskValue, data.disk.percent);
+
+  // raw json
+
+  rawData.innerText =
+    JSON.stringify(data, null, 2);
+
+  // chart update
+
+  const time =
+    new Date().toLocaleTimeString();
+
+  metricsChart.data.labels.push(time);
+
+  metricsChart.data.datasets[0].data.push(
+    data.cpu
+  );
+
+  metricsChart.data.datasets[1].data.push(
+    data.ram.percent
+  );
+
+  metricsChart.data.datasets[2].data.push(
+    data.disk.percent
+  );
+
+  // keep last 30 points
+
+  if (metricsChart.data.labels.length > 30) {
+
+    metricsChart.data.labels.shift();
+
+    metricsChart.data.datasets.forEach(ds => {
+      ds.data.shift();
+    });
+  }
+
+  metricsChart.update();
+}
+
+// --------------------------
+// COLORIZE METRIC
+// --------------------------
+
+function colorize(el, value) {
+
+  if (value > 90) {
+
+    el.style.color = "red";
+
+  } else if (value > 70) {
+
+    el.style.color = "orange";
+
+  } else {
+
+    el.style.color = "lime";
+  }
+}
+
+// --------------------------
+// POPULATE AGENTS
+// --------------------------
+
+function populateAgents() {
+
+  const current =
+    agentSelect.value;
+
+  agentSelect.innerHTML = "";
+
+  Object.keys(agents).forEach(agent => {
+
+    const option =
+      document.createElement("option");
+
+    option.value = agent;
+
+    option.innerText = agent;
+
+    agentSelect.appendChild(option);
+  });
+
+  if (current) {
+
+    agentSelect.value = current;
+  }
+}
+
+// --------------------------
+// AGENT SWITCH
+// --------------------------
+
+agentSelect.addEventListener("change", () => {
+
+  selectedAgent = agentSelect.value;
+
+  // clear chart
+
+  metricsChart.data.labels = [];
+
+  metricsChart.data.datasets.forEach(ds => {
+    ds.data = [];
+  });
+
+  metricsChart.update();
+
+  // load selected agent data
+
+  if (agents[selectedAgent]) {
+
+    updateDashboard(
+      agents[selectedAgent]
+    );
+  }
+
+  loadHistory();
+
+  loadEvents();
+
+  loadProcesses();
+});
+
+// --------------------------
+// LOAD HISTORY
+// --------------------------
+
+function loadHistory() {
+
+  if (!selectedAgent) return;
+
+  socket.send(JSON.stringify({
+
+    action: "get_history",
+
+    agent_id: selectedAgent
+  }));
+}
+
+// --------------------------
+// LOAD EVENTS
+// --------------------------
+
+function loadEvents() {
+
+  if (!selectedAgent) return;
+
+  socket.send(JSON.stringify({
+
+    action: "get_events",
+
+    agent_id: selectedAgent
+  }));
+}
+
+// --------------------------
+// LOAD PROCESSES
+// --------------------------
+
+function loadProcesses() {
+
+  if (!selectedAgent) return;
+
+  socket.send(JSON.stringify({
+
+    action: "get_processes",
+
+    agent_id: selectedAgent
+  }));
+}
+
+// --------------------------
+// LOAD PROCESS HISTORY
+// --------------------------
+
+function loadProcessHistory() {
+
+  if (!selectedAgent) return;
+
+  socket.send(JSON.stringify({
+
+    action: "get_process_history",
+
+    agent_id: selectedAgent
+  }));
+}
+
+// --------------------------
+// UPDATE THRESHOLDS
+// --------------------------
+
+function updateThresholds() {
+
+  const cpu =
+    document.getElementById("cpuThreshold").value;
+
+  const ram =
+    document.getElementById("ramThreshold").value;
+
+  const disk =
+    document.getElementById("diskThreshold").value;
+
+  sendThreshold("cpu", cpu);
+
+  sendThreshold("ram", ram);
+
+  sendThreshold("disk", disk);
+}
+
+// --------------------------
+// SEND THRESHOLD
+// --------------------------
+
+function sendThreshold(metric, value) {
+
+  socket.send(JSON.stringify({
+
+    action: "set_threshold",
+
+    metric,
+
+    value: Number(value)
+  }));
+}
+
+// --------------------------
+// ADD EVENT
+// --------------------------
+
+function addEvent(e) {
+
+  const div =
+    document.createElement("div");
+
+  div.className =
+    `event ${e.severity}`;
+
+  div.innerHTML = `
+
+    <strong>
+      ${e.metric.toUpperCase()}
+    </strong>
+
+    <div>
+      Value: ${e.value}%
+    </div>
+
+    <div>
+      Threshold: ${e.threshold}%
+    </div>
+
+    <div>
+      Severity:
+      <span style="color:${
+        e.severity === "critical"
+          ? "red"
+          : "orange"
+      }">
+        ${e.severity}
+      </span>
+    </div>
+
+    <div>
+      ${new Date(
+        e.timestamp * 1000
+      ).toLocaleString()}
+    </div>
+  `;
+
+  eventsContainer.prepend(div);
+}
+
+// --------------------------
+// LOAD CHART HISTORY
+// --------------------------
+
+function loadChartHistory(history) {
+
+  metricsChart.data.labels = [];
+
+  metricsChart.data.datasets[0].data = [];
+
+  metricsChart.data.datasets[1].data = [];
+
+  metricsChart.data.datasets[2].data = [];
+
+  history.forEach(d => {
+
+    metricsChart.data.labels.push(
+      new Date().toLocaleTimeString()
+    );
+
+    metricsChart.data.datasets[0].data.push(
+      d.cpu
+    );
+
+    metricsChart.data.datasets[1].data.push(
+      d.ram.percent
+    );
+
+    metricsChart.data.datasets[2].data.push(
+      d.disk.percent
+    );
+  });
+
+  metricsChart.update();
+}
+
+// --------------------------
+// RENDER PROCESSES
+// --------------------------
+
+function renderProcesses(processes) {
+
+  processTableBody.innerHTML = "";
+
+  if (!processes || !processes.length) {
+
+    processTableBody.innerHTML = `
+      <tr>
+        <td colspan="2">
+          No processes available
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  processes
+    .sort((a, b) => b.cpu_percent - a.cpu_percent)
+    .forEach(proc => {
+
+      const row =
+        document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${proc.name}</td>
+
+        <td style="
+          color:${
+            proc.cpu_percent > 70
+              ? 'red'
+              : proc.cpu_percent > 40
+              ? 'orange'
+              : 'lime'
+          }
+        ">
+          ${proc.cpu_percent}%
+        </td>
+      `;
+
+      processTableBody.appendChild(row);
+    });
+}
+
+// --------------------------
+// RENDER PROCESS HISTORY
+// --------------------------
+
+function renderProcessHistory(history) {
+
+  const container =
+    document.getElementById("processHistory");
+
+  container.innerHTML = "";
+
+  if (!history || !history.length) {
+
+    container.innerHTML =
+      "<p>No process history available</p>";
+
+    return;
+  }
+
+  history.forEach((snapshot, index) => {
+
+    const div =
+      document.createElement("div");
+
+    div.className =
+      "history-block";
+
+    const time =
+      new Date(
+        snapshot.timestamp * 1000
+      ).toLocaleTimeString();
+
+    div.innerHTML = `
+      <h3>
+        Snapshot ${index + 1} - ${time}
+      </h3>
+
+      <pre>${JSON.stringify(
+        snapshot.processes,
+        null,
+        2
+      )}</pre>
+    `;
+
+    container.appendChild(div);
+  });
+}
+  
+  </script>
+
+</body>
+</html>
