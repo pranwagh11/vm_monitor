@@ -5,6 +5,8 @@ import json
 import asyncio
 from collections import deque
 from contextlib import asynccontextmanager
+import uuid
+import aiomysql
 
 app = FastAPI()
 
@@ -12,30 +14,53 @@ app = FastAPI()
 # STORAGE
 # =========================================================
 
+
+MYSQL_POOL = None
+
+async def init_mysql_pool():
+    global MYSQL_POOL
+    MYSQL_POOL = await aiomysql.create_pool(
+        host="localhost",
+        port=3306,
+        user="root",
+        password="root123",
+        db="agent_monitoring",
+        autocommit=True,
+        minsize=1,
+        maxsize=10
+    )
+
+async def db_execute(query, params=None):
+    if not MYSQL_POOL:
+        return
+
+    async with MYSQL_POOL.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(query, params or ())
+#========================================================
 AGENTS = {}
-AGENT_SOCKETS = {}
+AGENT_SOCKETS = {}  # agent_id -> websocket
 
 HISTORY = {}
 PROCESS_HISTORY = {}
 SYSTEM_INFO = {}
 LOGS = {}
 
-FRONTENDS = set()
-FRONTEND_LAST_PING = {}
+FRONTENDS = {}  # ws_id -> websocket
+FRONTEND_LAST_PING = {}  # ws_id -> timestamp
 
 # =========================================================
-# CRITICAL ONLY THRESHOLDS
+# THRESHOLDS
 # =========================================================
 
 CRITICAL_THRESHOLDS = {
     "cpu": 90,
     "ram": 90,
     "disk": 90,
-
 }
 
 # =========================================================
-# INIT
+# INIT HELPERS
 # =========================================================
 
 def init_agent(agent_id):
@@ -43,47 +68,61 @@ def init_agent(agent_id):
     PROCESS_HISTORY.setdefault(agent_id, deque(maxlen=20))
     LOGS.setdefault(agent_id, deque(maxlen=50))
 
+
+    
+
 def ensure_agent(agent_id):
     AGENTS.setdefault(agent_id, {
         "status": "online",
         "last_seen": time.time()
     })
 
+
 # =========================================================
-# SAFE TYPE CONVERSION (FIX)
+# SAFE FLOAT
 # =========================================================
 
 def safe_float(v, default=0.0):
     try:
-        if v is None:
-            return default
         return float(v)
     except:
         return default
 
 # =========================================================
-# SAFE BROADCAST
+# SAFE SEND
+# =========================================================
+
+async def safe_send(ws, msg):
+    try:
+        await ws.send_json(msg)
+        return True
+    except:
+        return False
+
+# =========================================================
+# BROADCAST (NON-BLOCKING)
 # =========================================================
 
 async def broadcast(msg):
     if not FRONTENDS:
         return
 
+    dead = []
+
     results = await asyncio.gather(
-        *[ws.send_json(msg) for ws in list(FRONTENDS)],
+        *[safe_send(ws, msg) for ws in FRONTENDS.values()],
         return_exceptions=True
     )
 
-    dead = set()
-    for ws, result in zip(list(FRONTENDS), results):
-        if isinstance(result, Exception):
-            dead.add(ws)
+    for (ws_id, _), result in zip(list(FRONTENDS.items()), results):
+        if result is not True:
+            dead.append(ws_id)
         else:
-            FRONTEND_LAST_PING[ws] = time.time()
+            FRONTEND_LAST_PING[ws_id] = time.time()
 
-    for ws in dead:
-        FRONTENDS.discard(ws)
-        FRONTEND_LAST_PING.pop(ws, None)
+    for ws_id in dead:
+        FRONTENDS.pop(ws_id, None)
+        FRONTEND_LAST_PING.pop(ws_id, None)
 
 # =========================================================
 # ALERT ENGINE
@@ -94,22 +133,54 @@ def compute_critical_alert(cpu, ram, disk):
 
     if cpu >= CRITICAL_THRESHOLDS["cpu"]:
         reasons.append("cpu_critical")
-
     if ram >= CRITICAL_THRESHOLDS["ram"]:
         reasons.append("ram_critical")
-
     if disk >= CRITICAL_THRESHOLDS["disk"]:
         reasons.append("disk_critical")
 
-
     return ("critical" if reasons else None), reasons
+
+
+# =========================================================
+# HISTORY FETCH
+# =========================================================
+async def fetch_process_history(agent_id, limit=20):
+    if not MYSQL_POOL:
+        return list(PROCESS_HISTORY.get(agent_id, []))
+
+    async with MYSQL_POOL.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("""
+                SELECT timestamp, data
+                FROM process_history
+                WHERE agent_id=%s
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (agent_id, limit))
+            return await cur.fetchall()
+
+async def fetch_metrics_history(agent_id, limit=50):
+    if not MYSQL_POOL:
+        return list(HISTORY.get(agent_id, []))
+
+    async with MYSQL_POOL.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute("""
+                SELECT timestamp, cpu, ram, disk, net
+                FROM metrics_history
+                WHERE agent_id=%s
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (agent_id, limit))
+            return await cur.fetchall()
+
+
 
 # =========================================================
 # HANDLE AGENT DATA
 # =========================================================
 
 async def handle_agent(agent_id, data):
-
     ensure_agent(agent_id)
     AGENTS[agent_id]["last_seen"] = time.time()
 
@@ -117,18 +188,14 @@ async def handle_agent(agent_id, data):
 
     # ---------------- METRICS ----------------
     if msg_type == "metrics":
-
-        # FIX APPLIED HERE (ONLY CHANGE)
-        cpu = safe_float(data.get("cpu", 0))
-        ram = safe_float(data.get("ram", {}).get("percent", 0))
-        disk = safe_float(data.get("disk", {}).get("percent", 0))
+        cpu = safe_float(data.get("cpu"))
+        ram = safe_float(data.get("ram", {}).get("percent"))
+        disk = safe_float(data.get("disk", {}).get("percent"))
 
         net = data.get("net", {})
-        net_sent = safe_float(net.get("sent", 0))
-        net_recv = safe_float(net.get("recv", 0))
-        net_total = net_sent + net_recv
+        net_total = safe_float(net.get("sent")) + safe_float(net.get("recv"))
 
-        HISTORY.setdefault(agent_id, deque(maxlen=50)).append({
+        HISTORY[agent_id].append({
             "timestamp": time.time(),
             "cpu": cpu,
             "ram": ram,
@@ -137,6 +204,31 @@ async def handle_agent(agent_id, data):
         })
 
         alert, reasons = compute_critical_alert(cpu, ram, disk)
+
+        if alert:
+            asyncio.create_task(db_execute("""
+                INSERT INTO agent_events (agent_id, timestamp, event_type, cpu, ram, disk)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                agent_id,
+                time.time(),
+                ",".join(reasons),
+                cpu,
+                ram,
+                disk
+            )))
+            # STORE METRICS IN DB (non-blocking)
+            asyncio.create_task(db_execute("""
+                INSERT INTO metrics_history (agent_id, timestamp, cpu, ram, disk, net)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                agent_id,
+                time.time(),
+                cpu,
+                ram,
+                disk,
+                net_total
+            )))
 
         await broadcast({
             "type": "metrics",
@@ -149,9 +241,20 @@ async def handle_agent(agent_id, data):
 
     # ---------------- SYSTEM INFO ----------------
     elif msg_type == "system_info":
-
         SYSTEM_INFO[agent_id] = data.get("system", {})
-
+        asyncio.create_task(db_execute("""
+            UPDATE agents
+            SET sys_info=%s
+            WHERE agent_id=%s
+            ORDER BY Aid DESC
+            LIMIT 1
+        """, (
+            json.dumps(
+                SYSTEM_INFO[agent_id],
+                ensure_ascii=False
+            ),
+            agent_id
+        )))
         await broadcast({
             "type": "system_info",
             "agent_id": agent_id,
@@ -160,13 +263,21 @@ async def handle_agent(agent_id, data):
 
     # ---------------- PROCESSES ----------------
     elif msg_type == "processes":
-
         payload = {
             "timestamp": time.time(),
             "processes": data.get("processes", [])
         }
 
-        PROCESS_HISTORY.setdefault(agent_id, deque(maxlen=20)).append(payload)
+        PROCESS_HISTORY[agent_id].append(payload)
+
+        asyncio.create_task(db_execute("""
+            INSERT INTO process_history (agent_id, timestamp, data)
+            VALUES (%s, %s, %s)
+        """, (
+            agent_id,
+            time.time(),
+            json.dumps(payload)
+        )))
 
         await broadcast({
             "type": "processes",
@@ -176,8 +287,16 @@ async def handle_agent(agent_id, data):
 
     # ---------------- LOGS ----------------
     elif msg_type == "logs":
+        LOGS[agent_id].extend(data.get("logs", []))
 
-        LOGS.setdefault(agent_id, deque(maxlen=50)).extend(data.get("logs", []))
+        asyncio.create_task(db_execute("""
+            INSERT INTO log_history (agent_id, timestamp, data)
+            VALUES (%s, %s, %s)
+        """, (
+            agent_id,
+            time.time(),
+            json.dumps(data.get("logs", []))
+        )))
 
         await broadcast({
             "type": "logs",
@@ -191,9 +310,9 @@ async def handle_agent(agent_id, data):
 
 @app.websocket("/ws/agent/{agent_id}")
 async def agent_ws(websocket: WebSocket, agent_id: str):
-
     await websocket.accept()
 
+    # replace old connection
     old = AGENT_SOCKETS.get(agent_id)
     if old:
         try:
@@ -206,24 +325,33 @@ async def agent_ws(websocket: WebSocket, agent_id: str):
     init_agent(agent_id)
     ensure_agent(agent_id)
 
-    print(f"[AGENT CONNECTED] {agent_id}")
-
     AGENTS[agent_id] = {
-    "status": "online",
-    "last_seen": time.time()
+        "status": "online",
+        "last_seen": time.time()
     }
+
+    asyncio.create_task(db_execute("""
+        INSERT INTO agents (
+            agent_id,
+            status,
+            last_seen
+        )
+        VALUES (%s, %s, %s)
+    """, (
+        agent_id,
+        "online",
+        time.time()
+    )))
 
     await broadcast({
         "type": "agent_status",
         "agent_id": agent_id,
         "status": "online",
-        "timestamp": time.time(),
-        "message": f"{agent_id} connected"
+        "timestamp": time.time()
     })
 
     try:
         while True:
-
             msg = await websocket.receive()
 
             if msg.get("bytes"):
@@ -236,7 +364,12 @@ async def agent_ws(websocket: WebSocket, agent_id: str):
             elif msg.get("text"):
                 try:
                     cmd = json.loads(msg["text"])
-                    print("[AGENT CMD]", cmd)
+                    action = cmd.get("action")
+
+                    # forward command from frontend if needed
+                    if action:
+                        print("[AGENT CMD]", action)
+
                 except Exception as e:
                     print("[TEXT ERROR]", e)
 
@@ -248,15 +381,29 @@ async def agent_ws(websocket: WebSocket, agent_id: str):
             "status": "offline",
             "last_seen": time.time()
         }
+        asyncio.create_task(db_execute("""
+            UPDATE agents
+            SET
+                status=%s,
+                last_seen=%s
+            WHERE agent_id=%s
+            ORDER BY Aid DESC
+            LIMIT 1
+        """, (
+            "offline",
+            time.time(),
+            agent_id
+        )))
+
         AGENT_SOCKETS.pop(agent_id, None)
 
         await broadcast({
-        "type": "agent_status",
-        "agent_id": agent_id,
-        "status": "offline",
-        "timestamp": time.time(),
-        "message": f"{agent_id} disconnected"
+            "type": "agent_status",
+            "agent_id": agent_id,
+            "status": "offline",
+            "timestamp": time.time()
         })
+    
 
 # =========================================================
 # FRONTEND SOCKET
@@ -264,11 +411,11 @@ async def agent_ws(websocket: WebSocket, agent_id: str):
 
 @app.websocket("/ws/frontend")
 async def frontend_ws(websocket: WebSocket):
-
     await websocket.accept()
 
-    FRONTENDS.add(websocket)
-    FRONTEND_LAST_PING[websocket] = time.time()
+    ws_id = str(uuid.uuid4())
+    FRONTENDS[ws_id] = websocket
+    FRONTEND_LAST_PING[ws_id] = time.time()
 
     await websocket.send_json({
         "type": "init",
@@ -279,7 +426,6 @@ async def frontend_ws(websocket: WebSocket):
 
     try:
         while True:
-
             msg = await websocket.receive_text()
 
             try:
@@ -294,8 +440,9 @@ async def frontend_ws(websocket: WebSocket):
             action = data.get("action")
             agent_id = data.get("agent_id")
 
-            FRONTEND_LAST_PING[websocket] = time.time()
+            FRONTEND_LAST_PING[ws_id] = time.time()
 
+            # ---------------- THRESHOLDS ----------------
             if action == "get_thresholds":
                 await websocket.send_json({
                     "type": "thresholds",
@@ -303,32 +450,35 @@ async def frontend_ws(websocket: WebSocket):
                 })
 
             elif action == "set_thresholds":
-                new_values = data.get("data", {})
                 for k in CRITICAL_THRESHOLDS:
-                    if k in new_values:
-                        CRITICAL_THRESHOLDS[k] = new_values[k]
+                    if k in data.get("data", {}):
+                        CRITICAL_THRESHOLDS[k] = data["data"][k]
 
                 await broadcast({
                     "type": "thresholds",
                     "data": CRITICAL_THRESHOLDS
                 })
 
+            # ---------------- HISTORY ----------------
             elif action == "get_history":
+
+                data = await fetch_metrics_history(agent_id)
                 await websocket.send_json({
                     "type": "history",
                     "agent_id": agent_id,
-                    "data": list(HISTORY.get(agent_id, []))
+                    "data": data
                 })
 
             elif action == "get_process_history":
+                data = await fetch_process_history(agent_id)
                 await websocket.send_json({
                     "type": "process_history",
                     "agent_id": agent_id,
-                    "data": list(PROCESS_HISTORY.get(agent_id, []))
+                    "data": data
                 })
 
+            # ---------------- COMMANDS TO AGENT ----------------
             elif action in ["get_processes", "get_system_info", "get_logs"]:
-
                 agent = AGENT_SOCKETS.get(agent_id)
 
                 if not agent:
@@ -352,8 +502,8 @@ async def frontend_ws(websocket: WebSocket):
                 })
 
     except WebSocketDisconnect:
-        FRONTENDS.discard(websocket)
-        FRONTEND_LAST_PING.pop(websocket, None)
+        FRONTENDS.pop(ws_id, None)
+        FRONTEND_LAST_PING.pop(ws_id, None)
 
 # =========================================================
 # CLEANUP TASK
@@ -364,17 +514,29 @@ async def cleanup():
         await asyncio.sleep(30)
 
         now = time.time()
-        dead = [
-            ws for ws, last in FRONTEND_LAST_PING.items()
-            if now - last > 60
-        ]
+        dead = []
 
-        for ws in dead:
-            FRONTENDS.discard(ws)
-            FRONTEND_LAST_PING.pop(ws, None)
+        for ws_id, last in FRONTEND_LAST_PING.items():
+            ws = FRONTENDS.get(ws_id)
+
+            if not ws:
+                dead.append(ws_id)
+                continue
+
+            if now - last > 60:
+                dead.append(ws_id)
+
+        for ws_id in dead:
+            FRONTENDS.pop(ws_id, None)
+            FRONTEND_LAST_PING.pop(ws_id, None)
+
+# =========================================================
+# LIFESPAN
+# =========================================================
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await init_mysql_pool()
     task = asyncio.create_task(cleanup())
     yield
     task.cancel()
