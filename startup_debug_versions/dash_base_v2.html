@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<title>Agent Monitoring Dashboard</title>
+</head>
+
+<body class="bg-gray-950 text-white overflow-hidden">
+
+<div class="flex flex-col h-screen">  
+
+ <!-- =====================================================
+TOP NAVBAR
+===================================================== -->
+<nav class="w-full bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+
+  <!-- LEFT SIDE -->
+  <div class="flex items-center gap-4">
+
+    <div class="text-xl font-bold text-cyan-400">
+      Monitoring
+    </div>
+
+    <div class="hidden md:flex gap-2">
+
+      <button onclick="refreshAll()" class="nav-btn">
+        🔄 Refresh All
+      </button>
+
+      <button onclick="send('get_system_info')" class="nav-btn">
+        🖥 System
+      </button>
+
+      <button onclick="send('get_history')" class="nav-btn">
+        📈 History
+      </button>
+
+      <button onclick="send('get_processes')" class="nav-btn">
+        ⚙ Processes
+      </button>
+
+      <button onclick="send('get_logs')" class="nav-btn">
+        📜 Logs
+      </button>
+
+    </div>
+
+  </div>
+
+  <!-- RIGHT SIDE -->
+  <div class="flex items-center gap-4">
+
+    <!-- STATUS -->
+    <div class="flex items-center gap-2 bg-gray-800 px-3 py-1 rounded-lg">
+
+      <span class="text-gray-400 text-sm">Status</span>
+
+      <span id="status"
+        class="font-bold text-yellow-400 text-sm">
+        Connecting...
+      </span>
+
+    </div>
+
+    <!-- AGENT SELECT -->
+    <select id="agentSelect"
+      class="bg-gray-800 border border-gray-700 text-white px-3 py-1 rounded-lg text-sm">
+
+    </select>
+
+  </div>
+
+</nav>
+
+  <!-- =====================================================
+  MAIN CONTENT
+  ====================================================== -->
+  <main class="flex-1 overflow-auto p-6 space-y-6">
+
+    <!-- HEADER -->
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold">
+          Live Monitoring
+        </h1>
+
+        <p class="text-gray-400">
+          Real-time metrics & observability
+        </p>
+      </div>
+    </div>
+
+    <!-- =====================================================
+    METRIC CARDS
+    ====================================================== -->
+    <div class="grid grid-cols-4 gap-4">
+
+      <div class="metric-card border-red-500">
+        <div class="metric-title">CPU</div>
+        <div id="cpuVal" class="metric-value text-red-400">
+          0%
+        </div>
+      </div>
+
+      <div class="metric-card border-blue-500">
+        <div class="metric-title">RAM</div>
+        <div id="ramVal" class="metric-value text-blue-400">
+          0%
+        </div>
+      </div>
+
+      <div class="metric-card border-green-500">
+        <div class="metric-title">DISK</div>
+        <div id="diskVal" class="metric-value text-green-400">
+          0%
+        </div>
+      </div>
+
+   <div class="metric-card border-yellow-500">
+
+  <div class="metric-title">
+    NETWORK
+  </div>
+
+  <div class="mt-3 space-y-2 text-sm">
+
+    <!-- UPLOAD -->
+    <div class="flex items-center justify-between">
+
+      <div class="flex items-center gap-2 text-green-400">
+        <span>↑</span>
+        <span>Sent</span>
+      </div>
+
+      <div id="netSent"
+        class="font-bold text-green-400">
+        0 Bytes
+      </div>
+
+    </div>
+
+    <!-- DOWNLOAD -->
+    <div class="flex items-center justify-between">
+
+      <div class="flex items-center gap-2 text-blue-400">
+        <span>↓</span>
+        <span>Recv</span>
+      </div>
+
+      <div id="netRecv"
+        class="font-bold text-blue-400">
+        0 Bytes
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+    CHART
+    ====================================================== -->
+    <section class="panel">
+
+      <div class="panel-title">
+        📊 Performance Metrics
+      </div>
+
+      <canvas id="chart" height="100"></canvas>
+
+    </section>
+<section class="panel h-[320px]">
+
+  <div class="flex justify-between items-center mb-3">
+
+    <div class="panel-title mb-0">
+      🤖 Agent List
+    </div>
+
+    <button onclick="refreshAllAgents()" class="refresh-btn">
+      Refresh
+    </button>
+
+  </div>
+
+  <div class="overflow-auto flex-1">
+
+    <table class="w-full text-sm">
+
+      <thead class="text-gray-400 border-b border-gray-700">
+
+        <tr>
+          <th class="p-2">✔</th>
+          <th class="p-2 text-left">Agent ID</th>
+          <th class="p-2 text-left">IP</th>
+          <th class="p-2">CPU</th>
+          <th class="p-2">RAM</th>
+          <th class="p-2">DISK</th>
+          <th class="p-2">NET</th>
+        </tr>
+
+      </thead>
+
+      <tbody id="agentTable"
+             class="text-gray-200">
+      </tbody>
+
+    </table>
+
+  </div>
+
+</section>
+    <!-- =====================================================
+    GRID TABLES
+    ====================================================== -->
+    <div class="grid grid-cols-2 gap-6">
+
+      <!-- SYSTEM INFO -->
+      <section class="panel">
+
+        <div class="flex justify-between items-center mb-4">
+
+          <div class="panel-title mb-0">
+            🖥 System Info
+          </div>
+
+          <button
+            onclick="send('get_system_info')"
+            class="refresh-btn">
+            Refresh
+          </button>
+
+        </div>
+
+       <div class="table-wrap">
+          <table class="table">
+            <tbody id="systemTable"></tbody>
+          </table>
+        </div>
+
+      </section>
+
+      <!-- HISTORY -->
+      <section class="panel">
+
+       <div class="flex justify-between items-center mb-4">
+
+        <div class="panel-title mb-0">
+          📈 History
+        </div>
+
+        <button
+          onclick="send('get_history')"
+          class="refresh-btn">
+          Refresh
+        </button>
+
+      </div>
+      <div class="table-wrap">
+      
+       <table class="table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>CPU</th>
+              <th>RAM</th>
+              <th>DISK</th>
+            </tr>
+          </thead>
+
+          <tbody id="historyTable"></tbody>
+        </table>
+      
+      </div>
+       
+
+      </section>
+
+      <!-- PROCESSES -->
+      <section class="panel col-span-2">
+
+        <div class="flex justify-between items-center mb-4">
+
+          <div class="panel-title mb-0">
+            ⚙ Processes
+          </div>
+
+          <button
+            onclick="send('get_processes')"
+            class="refresh-btn">
+            Refresh
+          </button>
+
+        </div>
+
+        
+        <div class="overflow-auto max-h-80">
+          <div class="table-wrap">
+            <table class="table">
+
+              <thead>
+                <tr>
+                  <th>PID</th>
+                  <th>Name</th>
+                  <th>CPU</th>
+                  <th>MEM</th>
+                </tr>
+              </thead>
+
+              <tbody id="processTable"></tbody>
+
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- PROCESS HISTORY -->
+      <section class="panel">
+
+      <div class="flex justify-between items-center mb-4">
+
+        <div class="panel-title mb-0">
+          📊 Process History
+        </div>
+
+        <button
+          onclick="send('get_process_history')"
+          class="refresh-btn">
+          Refresh
+        </button>
+
+      </div>
+        <div class="table-wrap">
+             <table class="table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Processes</th>
+            </tr>
+          </thead>
+
+          <tbody id="processHistoryTable"></tbody>
+        </table>
+        </div>
+     
+
+      </section>
+
+      <!-- LOGS -->
+      <section class="panel">
+        
+        <div class="flex justify-between items-center mb-4">
+
+        <div class="panel-title mb-0">
+          📜 Logs
+        </div>
+
+        <button
+          onclick="send('get_logs')"
+          class="refresh-btn">
+          Refresh
+        </button>
+
+      </div>
+
+      <div class="flex-1 overflow-auto bg-black rounded p-3 text-sm font-mono space-y-1"
+     id="logBox">
+      </div>
+
+      </section>
+      <!-- =====================================================
+      THRESHOLDS
+      ===================================================== -->
+
+      <section class="panel">
+
+        <div class="flex justify-between items-center mb-6">
+
+          <div class="panel-title mb-0">
+            ⚠ Threshold Configuration
+          </div>
+
+          <button
+            id="setThresholdBtn"
+            class="refresh-btn bg-yellow-600 hover:bg-yellow-500">
+            Update Thresholds
+          </button>
+
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+
+          <!-- CPU -->
+          <div>
+
+            <div class="flex justify-between mb-2">
+              <span>CPU</span>
+              <span id="cpuOut">90</span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value="90"
+              id="cpu"
+              class="w-full"
+              oninput="cpuOut.innerText=this.value"
+            />
+
+          </div>
+
+          <!-- RAM -->
+          <div>
+
+            <div class="flex justify-between mb-2">
+              <span>RAM</span>
+              <span id="ramOut">90</span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value="90"
+              id="ram"
+              class="w-full"
+              oninput="ramOut.innerText=this.value"
+            />
+
+          </div>
+
+          <!-- DISK -->
+          <div>
+
+            <div class="flex justify-between mb-2">
+              <span>DISK</span>
+              <span id="diskOut">90</span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value="90"
+              id="disk"
+              class="w-full"
+              oninput="diskOut.innerText=this.value"
+            />
+
+          </div>
+
+          <!-- NET -->
+          <div>
+
+            <div class="flex justify-between mb-2">
+              <span>NETWORK</span>
+              <span id="netOut">500000000</span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max="1000000000"
+              step="1000000"
+              value="500000000"
+              id="net"
+              class="w-full"
+              oninput="netOut.innerText=this.value"
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+</div>
+<div id="toastContainer"
+     class="fixed top-5 right-5 space-y-3 z-50">
+</div>
+
+
+<script>
+
+// =====================================================
+// STATE
+// =====================================================
+
+const state = {
+  ws: null,
+  reconnectTimer: null,
+  agents: {},
+  selectedAgents: new Set(),
+  chart: null
+};
+
+// =====================================================
+// INIT
+// =====================================================
+
+window.addEventListener("load", () => {
+  initChart();
+  connectWS();
+});
+
+// =====================================================
+// WEBSOCKET
+// =====================================================
+
+function connectWS() {
+  setStatus("Connecting...", "yellow");
+
+  state.ws = new WebSocket("ws://localhost:8000/ws/frontend");
+
+  state.ws.onopen = () => setStatus("Connected", "green");
+
+  state.ws.onclose = () => {
+    setStatus("Disconnected", "red");
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = setTimeout(connectWS, 2000);
+  };
+
+  state.ws.onerror = () => setStatus("Error", "red");
+
+  state.ws.onmessage = (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+    routeMessage(msg);
+  };
+}
+
+// =====================================================
+// SAFE ROUTER (NO MORE CRASHES)
+// =====================================================
+
+const handlers = {
+  init: handleInit,
+  agents: handleAgents,
+  metrics: handleMetrics,
+  system_info: handleSystemInfo,
+  processes: handleProcesses,
+  history: handleHistory,
+  process_history: handleProcessHistory,
+  logs: handleLogs,
+  thresholds: handleThresholds
+};
+
+function routeMessage(msg) {
+  const handler = handlers[msg.type];
+
+  if (!handler) {
+    console.warn("Unhandled message type:", msg.type);
+    return;
+  }
+
+  handler(msg);
+}
+
+// =====================================================
+// INIT
+// =====================================================
+
+function handleInit(msg) {
+  if (msg.agents) handleAgents(msg);
+
+  if (msg.thresholds) applyThresholds(msg.thresholds);
+
+  state.agents = {};
+
+  for (const id in msg.agents || {}) {
+    state.agents[id] = createAgent(id, msg.agents[id]);
+  }
+
+  renderAgents();
+}
+
+// =====================================================
+// AGENTS
+// =====================================================
+
+function handleAgents(msg) {
+  updateAgentSelect(msg.agents || {});
+}
+
+function createAgent(id, data = {}) {
+  return {
+    id,
+    ip: data.ip || "-",
+    cpu: 0,
+    ram: 0,
+    disk: 0,
+    net: 0
+  };
+}
+
+function updateAgentSelect(agents) {
+  const select = document.getElementById("agentSelect");
+  const current = select.value;
+
+  select.innerHTML = "";
+
+  Object.entries(agents).forEach(([id, data]) => {
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${id} (${data.status || "unknown"})`;
+    select.appendChild(opt);
+  });
+
+  if (current) select.value = current;
+}
+
+// =====================================================
+// METRICS
+// =====================================================
+
+function handleMetrics(msg) {
+  const d = msg.data || {};
+
+  updateGlobalMetrics(d);
+  updateAgentMetrics(msg.agent_id, d);
+
+  if (msg.alert) handleAlert(msg);
+}
+
+function updateGlobalMetrics(d) {
+  setText("cpuVal", `${(d.cpu ?? 0).toFixed(1)}%`);
+  setText("ramVal", `${(d.ram?.percent ?? 0).toFixed(1)}%`);
+  setText("diskVal", `${(d.disk?.percent ?? 0).toFixed(1)}%`);
+
+  setText("netSent", formatBytes(d.net?.sent ?? 0));
+  setText("netRecv", formatBytes(d.net?.recv ?? 0));
+
+  updateChart(
+    d.cpu ?? 0,
+    d.ram?.percent ?? 0,
+    d.disk?.percent ?? 0
+  );
+}
+
+function updateAgentMetrics(id, d) {
+  if (!id) return;
+
+  if (!state.agents[id]) {
+    state.agents[id] = createAgent(id);
+  }
+
+  state.agents[id].cpu = d.cpu ?? 0;
+  state.agents[id].ram = d.ram?.percent ?? 0;
+  state.agents[id].disk = d.disk?.percent ?? 0;
+  state.agents[id].net = (d.net?.sent ?? 0) + (d.net?.recv ?? 0);
+
+  renderAgents();
+}
+
+// =====================================================
+// SYSTEM INFO
+// =====================================================
+
+function handleSystemInfo(msg) {
+  const el = document.getElementById("systemTable");
+
+  el.innerHTML = Object.entries(msg.data || {})
+    .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`)
+    .join("");
+}
+
+// =====================================================
+// PROCESSES
+// =====================================================
+
+function handleProcesses(msg) {
+  const el = document.getElementById("processTable");
+
+  const list = msg.data?.processes || [];
+
+  el.innerHTML = list.map(p => `
+    <tr>
+      <td>${p.pid ?? "-"}</td>
+      <td>${p.name ?? "-"}</td>
+      <td>${p.cpu ?? 0}</td>
+      <td>${p.mem ?? 0}</td>
+    </tr>
+  `).join("");
+}
+
+// =====================================================
+// HISTORY
+// =====================================================
+
+function handleHistory(msg) {
+  const el = document.getElementById("historyTable");
+
+  el.innerHTML = (msg.data || []).map(h => `
+    <tr>
+      <td>${new Date(h.timestamp * 1000).toLocaleTimeString()}</td>
+      <td>${h.cpu}</td>
+      <td>${h.ram}</td>
+      <td>${h.disk}</td>
+    </tr>
+  `).join("");
+}
+
+// =====================================================
+// PROCESS HISTORY (FIXED MISSING ERROR)
+// =====================================================
+
+function handleProcessHistory(msg) {
+  const el = document.getElementById("processHistoryTable");
+
+  el.innerHTML = (msg.data || []).map(p => `
+    <tr>
+      <td>${new Date(p.timestamp * 1000).toLocaleTimeString()}</td>
+      <td>${p.processes?.length ?? 0}</td>
+    </tr>
+  `).join("");
+}
+
+// =====================================================
+// LOGS
+// =====================================================
+
+function handleLogs(msg) {
+  const el = document.getElementById("logBox");
+
+  el.innerHTML = (msg.data || []).map(l => {
+    const time = new Date(l.timestamp * 1000).toLocaleTimeString();
+
+    const color =
+      l.level === "ERROR" ? "text-red-400" :
+      l.level === "WARN" ? "text-yellow-400" :
+      "text-green-400";
+
+    return `
+      <div>
+        <span class="text-gray-500">${time}</span>
+        <span class="${color}">[${l.level}]</span>
+        <span>${l.message}</span>
+      </div>
+    `;
+  }).join("");
+
+  el.scrollTop = el.scrollHeight;
+}
+
+// =====================================================
+// THRESHOLDS
+// =====================================================
+
+function handleThresholds(msg) {
+  applyThresholds(msg.data);
+}
+
+function applyThresholds(t) {
+  if (!t) return;
+
+  ["cpu", "ram", "disk", "net"].forEach(k => {
+    const el = document.getElementById(k);
+    const out = document.getElementById(k + "Out");
+
+    if (el) el.value = t[k];
+    if (out) out.innerText = t[k];
+  });
+}
+
+// =====================================================
+// CHART
+// =====================================================
+
+function initChart() {
+  state.chart = new Chart(document.getElementById("chart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        { label: "CPU", data: [], borderColor: "#ef4444" },
+        { label: "RAM", data: [], borderColor: "#3b82f6" },
+        { label: "DISK", data: [], borderColor: "#22c55e" }
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      scales: { y: { min: 0, max: 100 } }
+    }
+  });
+}
+
+function updateChart(cpu, ram, disk) {
+  const c = state.chart;
+
+  c.data.labels.push(new Date().toLocaleTimeString());
+  c.data.datasets[0].data.push(cpu);
+  c.data.datasets[1].data.push(ram);
+  c.data.datasets[2].data.push(disk);
+
+  if (c.data.labels.length > 20) {
+    c.data.labels.shift();
+    c.data.datasets.forEach(d => d.data.shift());
+  }
+
+  c.update();
+}
+
+// =====================================================
+// UI HELPERS
+// =====================================================
+
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.innerText = val;
+}
+
+function setStatus(text, color) {
+  const el = document.getElementById("status");
+  el.innerText = text;
+  el.className = `font-bold text-${color}-400`;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
+}
+
+// =====================================================
+// SEND ACTIONS
+// =====================================================
+
+function send(action) {
+  const ws = state.ws;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  const agent = document.getElementById("agentSelect")?.value;
+  if (!agent) return;
+
+  ws.send(JSON.stringify({ action, agent_id: agent }));
+}
+
+// =====================================================
+// AGENT TABLE
+// =====================================================
+
+function renderAgents() {
+  const el = document.getElementById("agentTable");
+
+  el.innerHTML = Object.values(state.agents).map(a => `
+    <tr>
+      <td>
+        <input type="checkbox"
+          onchange="toggleAgent('${a.id}')"
+          ${state.selectedAgents.has(a.id) ? "checked" : ""}/>
+      </td>
+      <td>${a.id}</td>
+      <td>${a.ip}</td>
+      <td>${a.cpu}%</td>
+      <td>${a.ram}%</td>
+      <td>${a.disk}%</td>
+      <td>${a.net}</td>
+    </tr>
+  `).join("");
+}
+
+// =====================================================
+// TOGGLES
+// =====================================================
+
+function toggleAgent(id) {
+  if (state.selectedAgents.has(id)) {
+    state.selectedAgents.delete(id);
+  } else {
+    state.selectedAgents.add(id);
+  }
+}
+
+
+// =====================================================
+// ALEARTS
+// =====================================================
+
+
+
+function handleAlert(msg) {
+  const reasons = msg.reasons || [];
+
+  const type =
+    reasons.includes("cpu_critical") ? "warning" :
+    reasons.includes("network_critical") ? "error" :
+    "info";
+
+  showToast(reasons.join(", ") || "Alert", type, 5000);
+}
+
+
+function setThresholds() {
+  const ws = state.ws;
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    alert("WebSocket not connected");
+    return;
+  }
+
+  const cpuVal = Number(document.getElementById("cpu").value);
+  const ramVal = Number(document.getElementById("ram").value);
+  const diskVal = Number(document.getElementById("disk").value);
+  const netVal = Number(document.getElementById("net").value);
+
+  ws.send(JSON.stringify({
+    action: "set_thresholds",
+    data: {
+      cpu: cpuVal,
+      ram: ramVal,
+      disk: diskVal,
+      net: netVal
+    }
+  }));
+}
+
+function showToast(message, type = "info", duration = 4000) {
+  const container = document.getElementById("toastContainer");
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+
+  const colors = {
+    info: "#3b82f6",
+    warning: "#f59e0b",
+    error: "#ef4444",
+    success: "#22c55e"
+  };
+
+ // Change the toast innerHTML to this for better styling
+toast.innerHTML = `
+  <div class="toast-title">${type}</div>
+  <div class="toast-message">${message}</div>
+  <div class="toast-bar" style="background: ${colors[type]}"></div>
+`;
+
+  container.appendChild(toast);
+
+  const bar = toast.querySelector(".toast-bar");
+  bar.style.background = colors[type] || "#ef4444";
+
+  let width = 100;
+
+  const interval = setInterval(() => {
+    width -= 100 / (duration / 50);
+    bar.style.width = width + "%";
+    if (width <= 0) clearInterval(interval);
+  }, 50);
+
+  setTimeout(() => {
+    toast.remove();
+  }, duration);
+}
+document.getElementById("setThresholdBtn")
+  .addEventListener("click", setThresholds);
+  
+  
+
+
+</script>
+
+<style>
+
+
+
+
+.nav-btn {
+  background: #111827;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  transition: 0.2s;
+  border: 1px solid #1f2937;
+}
+
+.nav-btn:hover {
+  background: #1f2937;
+  border-color: #374151;
+}
+
+
+.btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  background: #1f2937;
+  transition: 0.2s;
+}
+
+.btn:hover {
+  background: #374151;
+}
+
+.metric-card {
+  background: #111827;
+  padding: 20px;
+  border-radius: 12px;
+  border-left-width: 4px;
+}
+
+.metric-title {
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.panel {
+  background: #111827;
+  padding: 20px;
+  border-radius: 12px;
+    height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+.table-wrap {
+  flex: 1;
+  overflow-y: auto;
+} 
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  color: #9ca3af;
+  padding: 10px;
+  border-bottom: 1px solid #374151;
+}
+
+.table td {
+  padding: 10px;
+  border-bottom: 1px solid #1f2937;
+}
+.refresh-btn {
+  background: #2563eb;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: 0.2s;
+}
+
+.refresh-btn:hover {
+  background: #3b82f6;
+}
+
+.toast {
+  width: 320px;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  padding: 12px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.toast-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.toast-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: #ef4444;
+  width: 100%;
+  transition: width linear;
+}
+</style>
+
+</body>
+</html>
